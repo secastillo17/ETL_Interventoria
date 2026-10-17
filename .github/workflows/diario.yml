@@ -1,0 +1,36 @@
+name: ETL diaria
+
+# Procesa lo que el equipo subio a 01_ENTRADA. Lunes a sabado a las 6:47 p. m.
+# hora de Colombia (23:47 UTC), despues de la jornada de campo.
+on:
+  schedule:
+    - cron: "47 23 * * 1-6"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: etl-drive          # nunca dos modos moviendo archivos al mismo tiempo
+  cancel-in-progress: false
+
+jobs:
+  diario:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DRIVE_RAIZ_ID: ${{ vars.DRIVE_RAIZ_ID }}
+      TABLA_MAESTRA_ID: ${{ vars.TABLA_MAESTRA_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Procesar 01_ENTRADA
+        run: python -m etl diario

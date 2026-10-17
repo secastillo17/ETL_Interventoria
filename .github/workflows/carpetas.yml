@@ -1,0 +1,33 @@
+name: Crear carpetas
+
+# Manual. Crea en Drive la estructura oficial a partir de la tabla maestra.
+# Se corre al iniciar y cada vez que el director registra una etapa nueva.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: etl-drive
+  cancel-in-progress: false
+
+jobs:
+  carpetas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DRIVE_RAIZ_ID: ${{ vars.DRIVE_RAIZ_ID }}
+      TABLA_MAESTRA_ID: ${{ vars.TABLA_MAESTRA_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m etl carpetas

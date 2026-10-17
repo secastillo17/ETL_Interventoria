@@ -1,0 +1,49 @@
+name: Migracion 2 - aplicar
+
+# Manual. Aplica solo las filas con decision MIGRAR y aprobado_director SI.
+# Pide escribir APLICAR para evitar ejecuciones por error.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmacion:
+        description: "Escriba APLICAR para confirmar"
+        required: true
+      hoja_id:
+        description: "ID de la hoja de revision (vacio = la mas reciente)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: etl-drive
+  cancel-in-progress: false
+
+jobs:
+  aplicar:
+    if: ${{ inputs.confirmacion == 'APLICAR' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DRIVE_RAIZ_ID: ${{ vars.DRIVE_RAIZ_ID }}
+      TABLA_MAESTRA_ID: ${{ vars.TABLA_MAESTRA_ID }}
+      HOJA_ID: ${{ inputs.hoja_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Aplicar migracion aprobada
+        run: |
+          if [ -n "$HOJA_ID" ]; then
+            python -m etl migracion-aplicar --hoja "$HOJA_ID"
+          else
+            python -m etl migracion-aplicar
+          fi

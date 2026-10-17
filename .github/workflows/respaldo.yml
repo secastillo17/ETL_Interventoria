@@ -1,0 +1,44 @@
+name: Respaldo semanal
+
+# Domingos a las 8:13 p. m. hora de Colombia. Verifica que lo oficial siga
+# intacto (md5) y guarda la base en 98_RESPALDOS y como artefacto de GitHub
+# (copia fuera de Google, se conserva 90 dias).
+on:
+  schedule:
+    - cron: "13 1 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: etl-drive
+  cancel-in-progress: false
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+      GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DRIVE_RAIZ_ID: ${{ vars.DRIVE_RAIZ_ID }}
+      TABLA_MAESTRA_ID: ${{ vars.TABLA_MAESTRA_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Integridad y respaldo
+        run: python -m etl respaldo --salida respaldo
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: respaldo-pei-${{ github.run_number }}
+          path: respaldo/*.zip
+          retention-days: 90
+          if-no-files-found: warn
