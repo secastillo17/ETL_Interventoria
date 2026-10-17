@@ -39,7 +39,7 @@ def ejecutar(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None):
     db = db or BaseDatos()
     with ejecucion(db, "carpetas") as (ej_id, c), carpeta_temporal() as tmp:
         raiz = drive.raiz()
-        tm = cargar_tabla_maestra(drive, raiz, Path(tmp))
+        tm = cargar_tabla_maestra(drive, raiz, Path(tmp), db, ej_id)
         db.sincronizar_tabla_maestra(tm)
         carpetas = Carpetas(drive, raiz, tm)
         for nombre in CONTROL:
@@ -52,6 +52,6 @@ def ejecutar(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None):
                 for t in TIPOS:
                     carpetas.tipo(codigo, e, t)
                     c["revisados"] += 1
-            log.info("  %s: %d etapa(s) x %d tipos", codigo, len(etapas), len(TIPOS))
+            log.debug("  %s: %d etapa(s) x %d tipos", codigo, len(etapas), len(TIPOS))
         db.evento(ej_id, "carpetas", None, None, f"{c['revisados']} carpetas de tipo verificadas")
     return c

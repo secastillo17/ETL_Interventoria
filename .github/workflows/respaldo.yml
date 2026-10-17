@@ -1,8 +1,8 @@
 name: Respaldo semanal
 
 # Domingos a las 8:13 p. m. hora de Colombia. Verifica que lo oficial siga
-# intacto (md5) y guarda la base en 98_RESPALDOS y como artefacto de GitHub
-# (copia fuera de Google, se conserva 90 dias).
+# intacto (md5) y guarda la base en 98_RESPALDOS. La copia fuera de Google
+# es la descarga mensual con Google Takeout (docs/operacion.md).
 on:
   schedule:
     - cron: "13 1 * * 1"
@@ -24,8 +24,8 @@ jobs:
       GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DRIVE_RAIZ_ID: ${{ vars.DRIVE_RAIZ_ID }}
-      TABLA_MAESTRA_ID: ${{ vars.TABLA_MAESTRA_ID }}
+      DRIVE_RAIZ_ID: ${{ secrets.DRIVE_RAIZ_ID }}
+      TABLA_MAESTRA_ID: ${{ secrets.TABLA_MAESTRA_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,11 +34,6 @@ jobs:
           cache: pip
       - run: pip install -r requirements.txt
       - name: Integridad y respaldo
-        run: python -m etl respaldo --salida respaldo
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: respaldo-pei-${{ github.run_number }}
-          path: respaldo/*.zip
-          retention-days: 90
-          if-no-files-found: warn
+        # El .zip queda solo en 98_RESPALDOS de Drive. No se guarda como
+        # artefacto de GitHub porque el repositorio es público.
+        run: python -m etl respaldo

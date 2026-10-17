@@ -267,7 +267,7 @@ def proponer(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None):
     with ejecucion(db, "migracion-propuesta") as (ej_id, c), carpeta_temporal() as tmp:
         tmp = Path(tmp)
         raiz = drive.raiz()
-        tm = cargar_tabla_maestra(drive, raiz, tmp)
+        tm = cargar_tabla_maestra(drive, raiz, tmp, db, ej_id)
         db.sincronizar_tabla_maestra(tm)
         carpetas = Carpetas(drive, raiz, tm)
         origen_id = carpetas.control(config.CARPETA_MIGRACION)
@@ -287,7 +287,7 @@ def proponer(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None):
                     contenido = leer_contenido(ruta, a["name"])
                     ruta.unlink(missing_ok=True)
                 except Exception as exc:  # noqa: BLE001
-                    log.warning("  sin pistas de contenido para %s: %s", a["name"], exc)
+                    log.debug("  sin pistas de contenido para %s: %s", a["name"], exc)
             s = sugerir(a, tm, contenido)
             decision, obs = "PENDIENTE", ""
             md5 = a.get("md5Checksum")
@@ -321,7 +321,7 @@ def proponer(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None):
         hoja = drive.subir(local, destino, nombre_hoja, como_hoja=True)
         db.evento(ej_id, "migracion_propuesta", hoja["id"], nombre_hoja,
                   f"{len(filas)} filas; {Counter(f['confianza'] for f in filas)}")
-        log.info("Hoja de revisión: %s", hoja.get("webViewLink"))
+        log.debug("Hoja de revisión: %s", hoja.get("webViewLink"))
         c["por_revisar"] = len(filas)
         return hoja
 
@@ -349,7 +349,7 @@ def aplicar(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None, hoja_
     with ejecucion(db, "migracion-aplicar") as (ej_id, c), carpeta_temporal() as tmp:
         tmp = Path(tmp)
         raiz = drive.raiz()
-        tm = cargar_tabla_maestra(drive, raiz, tmp)
+        tm = cargar_tabla_maestra(drive, raiz, tmp, db, ej_id)
         db.sincronizar_tabla_maestra(tm)
         proc = ProcesadorEntrada(drive, db, tm, raiz, ej_id, c, tmp, hoy, mover_apartados=False)
 

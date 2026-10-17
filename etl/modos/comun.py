@@ -16,7 +16,8 @@ from etl.tabla_maestra import TablaMaestra
 log = logging.getLogger("etl")
 
 
-def cargar_tabla_maestra(drive: Drive, raiz_id: str, carpeta_tmp: Path) -> TablaMaestra:
+def cargar_tabla_maestra(drive: Drive, raiz_id: str, carpeta_tmp: Path, db=None,
+                         ejecucion_id=None) -> TablaMaestra:
     if config.TABLA_MAESTRA_ID:
         archivo = drive.obtener(config.TABLA_MAESTRA_ID)
     else:
@@ -28,8 +29,12 @@ def cargar_tabla_maestra(drive: Drive, raiz_id: str, carpeta_tmp: Path) -> Tabla
             "Genérela con `python -m etl plantilla` y súbala a Drive como Hoja de cálculo.")
     ruta = drive.exportar_xlsx(archivo, carpeta_tmp / "tabla_maestra.xlsx")
     tm = TablaMaestra.desde_excel(ruta)
+    if tm.problemas:
+        log.warning("La tabla maestra tiene %d problema(s); detalle con LOG_NIVEL=DEBUG", len(tm.problemas))
     for p in tm.problemas:
-        log.warning("Tabla maestra: %s", p)
+        log.debug("Tabla maestra: %s", p)
+        if db is not None:
+            db.evento(ejecucion_id, "tabla_maestra", detalle=p)  # el director los ve en la base
     if not tm.proyectos:
         raise RuntimeError("La tabla maestra no tiene proyectos registrados.")
     return tm

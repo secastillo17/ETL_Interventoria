@@ -17,12 +17,16 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
 
 
 def main(argv=None):
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
+    # INFO (por defecto) solo muestra conteos: el repositorio es público y los
+    # registros de Actions los puede leer cualquiera. En el computador se puede
+    # usar LOG_NIVEL=DEBUG para ver archivo por archivo.
+    logging.basicConfig(level=getattr(logging, os.getenv("LOG_NIVEL", "INFO").upper(), logging.INFO), format="%(asctime)s %(levelname)s %(message)s",
                         datefmt="%H:%M:%S")
     ap = argparse.ArgumentParser(prog="python -m etl", description="ETL de gobierno de datos PEI")
     sub = ap.add_subparsers(dest="modo", required=True)

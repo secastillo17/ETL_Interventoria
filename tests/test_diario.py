@@ -107,3 +107,17 @@ def test_indicadores_y_panel(drive, db, tmp_path):
     assert mensual["recibidos"] == 2 and float(mensual["pct_conformidad"]) == 50.0
     for vista in ("v_inventario", "v_ejecuciones", "v_control_mh", "v_cantidades_abscisa", "v_cartera_nivelacion"):
         db.leer_sql(f"SELECT * FROM reporte.{vista}")
+
+
+def test_registro_publico_no_expone_nombres_ni_correos(drive, db, tmp_path, caplog):
+    """El repositorio es público: en nivel INFO el registro de Actions solo
+    debe tener conteos, nunca nombres de archivos ni correos."""
+    import logging
+    caplog.set_level(logging.INFO, logger="etl")
+    drive.subir_como(cartera_txt(tmp_path / "a.txt"), _entrada(drive), NOMBRE, dueno=TOPOGRAFO)
+    drive.subir_como(cartera_txt(tmp_path / "b.txt", 2), _entrada(drive), "ALEJANDRIA (1).CSV", dueno=TOPOGRAFO2)
+    _correr(drive, db)
+    texto = "\n".join(r.getMessage() for r in caplog.records if r.levelno >= logging.INFO)
+    for secreto in (NOMBRE, "ALEJANDRIA", TOPOGRAFO, TOPOGRAFO2, "Alejandría"):
+        assert secreto not in texto
+    assert "oficializados=1" in texto and "rechazados=1" in texto

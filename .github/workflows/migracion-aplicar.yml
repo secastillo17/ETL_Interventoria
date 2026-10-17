@@ -30,8 +30,8 @@ jobs:
       GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
       GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DRIVE_RAIZ_ID: ${{ vars.DRIVE_RAIZ_ID }}
-      TABLA_MAESTRA_ID: ${{ vars.TABLA_MAESTRA_ID }}
+      DRIVE_RAIZ_ID: ${{ secrets.DRIVE_RAIZ_ID }}
+      TABLA_MAESTRA_ID: ${{ secrets.TABLA_MAESTRA_ID }}
       HOJA_ID: ${{ inputs.hoja_id }}
     steps:
       - uses: actions/checkout@v4

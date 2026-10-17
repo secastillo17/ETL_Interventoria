@@ -39,7 +39,7 @@ def ejecutar(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None,
     with ejecucion(db, "respaldo") as (ej_id, c), carpeta_temporal() as tmp:
         tmp = Path(tmp)
         raiz = drive.raiz()
-        tm = cargar_tabla_maestra(drive, raiz, tmp)
+        tm = cargar_tabla_maestra(drive, raiz, tmp, db, ej_id)
         carpetas = Carpetas(drive, raiz, tm)
 
         # 1. Integridad
@@ -62,7 +62,7 @@ def ejecutar(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None,
             if estado != "OK":
                 c["errores"] += 1
                 db.evento(ej_id, "integridad", f["drive_id"], f["nombre_drive"], estado)
-                log.warning("  INTEGRIDAD %s: %s", estado, f["nombre_drive"])
+                log.debug("  INTEGRIDAD %s: %s", estado, f["nombre_drive"])
 
         # 2. Respaldo
         sello = datetime.now().strftime("%Y-%m-%d_%H%M")
@@ -79,5 +79,7 @@ def ejecutar(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None,
                              mime="application/zip")
         db.evento(ej_id, "respaldo", subido["id"], zip_path.name,
                   f"{c['filas_cargadas']} filas; integridad: {c['revisados'] - c['errores']}/{c['revisados']} OK")
+        if c["errores"]:
+            log.warning("%d archivo(s) oficiales con problemas de integridad; detalle en ctrl.evento", c["errores"])
         log.info("Respaldo %s subido a 98_RESPALDOS", zip_path.name)
         return zip_path, c

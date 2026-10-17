@@ -55,7 +55,7 @@ El token deja de servir si alguien lo revoca en <https://myaccount.google.com/pe
 
 ## 5. Repositorio y Secrets de GitHub
 
-1. Recomendado: cree una **organización gratuita** en GitHub, por ejemplo `pei-interventoria`, y dentro de ella el repositorio **privado** `pei-etl`. Invite al director y al lector con rol **Read**, para que vean el código, las ejecuciones y las bitácoras sin poder cambiar nada.
+1. Cree el repositorio **público** `pei-etl`. Cualquiera puede ver el código y las ejecuciones sin invitación, pero nadie puede cambiarlo ni ejecutarlo. Los Secrets no son visibles, y en los registros solo aparecen conteos, nunca nombres de archivos ni correos.
 2. En el repositorio, vaya a **Settings → Secrets and variables → Actions**.
    - En la pestaña **Secrets → New repository secret**, cree:
 
@@ -66,19 +66,21 @@ El token deja de servir si alguien lo revoca en <https://myaccount.google.com/pe
      | `GOOGLE_REFRESH_TOKEN` | paso 4 |
      | `DATABASE_URL` | paso 1 (rol `etl_escritura`) |
 
-   - En la pestaña **Variables → New repository variable**, cree:
-
-     | Nombre | Valor |
-     |---|---|
      | `DRIVE_RAIZ_ID` | paso 2 |
      | `TABLA_MAESTRA_ID` | paso 2 |
+
+     Los dos IDs no dan acceso por sí solos, pero se guardan como Secrets para que no aparezcan en los registros públicos.
 
 3. Vaya a la pestaña **Actions** y ejecute en este orden con **Run workflow**:
    1. **Crear carpetas**. Revise en Drive que aparezcan `01_ENTRADA`, los proyectos y sus etapas.
    2. **ETL diaria**. Con `01_ENTRADA` vacía debe terminar en verde y dejar una fila en `ctrl.ejecucion`.
 4. Suba a `01_ENTRADA` un archivo bien nombrado y otro mal nombrado, y vuelva a correr **ETL diaria**. El primero debe quedar en su carpeta oficial y el segundo en `99_RECHAZADOS`, con el motivo en **Detalles → Descripción**.
 
-El plan gratuito de una organización con repositorios privados incluye 2.000 minutos de Actions al mes. Una corrida diaria tarda alrededor de 1 a 2 minutos.
+En repositorios públicos los minutos de Actions son gratuitos y sin límite. GitHub apaga los workflows programados de un repositorio público después de 60 días sin actividad, así que el workflow **Mantener activo** deja una marca cada mes para evitarlo.
+
+**Seguridad del repositorio público**
+- En **Settings → Actions → General**, marque **Require approval for all outside collaborators** en "Fork pull request workflows".
+- En **Settings → Branches**, proteja `main` para que nadie más pueda hacer push.
 
 ## 6. Permisos en Drive
 
@@ -92,7 +94,9 @@ El plan gratuito de una organización con repositorios privados incluye 2.000 mi
 
 En **Compartir**, desactive "Cualquier persona con el enlace" en todas las carpetas.
 
-## 7. Correr en su computador (opcional)
+## 7. Correr en su computador
+
+La migración se recomienda correrla en el computador (ver `migracion_local.md`).
 
 ```bash
 cp .env.example .env        # y llene los valores

@@ -26,7 +26,8 @@ La información de obra (carteras, control de pozos, cantidades, planos, informe
 | Archivos grandes | Planos, PDF y fotos no se descargan; se usan los metadatos y el md5 que Drive ya calcula. Mover y copiar ocurre en los servidores de Google. Solo Excel, CSV y TXT se descargan para leer su contenido. |
 | Propiedad | Lo oficial siempre queda a nombre de la cuenta de la empresa. Si el archivo lo subió otra persona se copia y el original se aparta en `99_ORIGINALES_RECIBIDOS`. |
 | Trazabilidad | Cada archivo, evento y ejecución queda en `ctrl.archivo`, `ctrl.evento` y `ctrl.ejecucion`, con el enlace a la corrida de Actions. |
-| Integridad y respaldo | Cada semana se comprueba que lo oficial siga en Drive con el mismo md5 y se respalda la base en Drive y como artefacto de GitHub. |
+| Integridad y respaldo | Cada semana se comprueba que lo oficial siga en Drive con el mismo md5 y se respalda la base en `98_RESPALDOS`. Cada mes el director hace una copia fuera de Google con Takeout. |
+| Repositorio público sin datos | El código es público; los registros de Actions solo muestran conteos, los IDs y claves van como Secrets y los datos de la empresa no se suben. |
 | Mínimo privilegio | Tres usuarios de base: administración, escritura para la ETL y lectura de vistas para Looker (`sql/03_permisos.sql`). |
 
 ## Modos (un solo programa)
@@ -34,8 +35,8 @@ La información de obra (carteras, control de pozos, cantidades, planos, informe
 | Modo | Cuándo | Workflow |
 |---|---|---|
 | `python -m etl diario` | Lunes a sábado, 6:47 p. m. | `diario.yml` (automático) |
-| `python -m etl migracion-propuesta` | Una vez por lote de archivos antiguos | `migracion-propuesta.yml` (manual) |
-| `python -m etl migracion-aplicar` | Cuando la hoja de revisión está aprobada | `migracion-aplicar.yml` (manual, pide escribir APLICAR) |
+| `python -m etl migracion-propuesta` | Una vez por lote de archivos antiguos | Se recomienda en el computador (`docs/migracion_local.md`); también `migracion-propuesta.yml` |
+| `python -m etl migracion-aplicar` | Cuando la hoja de revisión está aprobada | Se recomienda en el computador; también `migracion-aplicar.yml` (pide escribir APLICAR) |
 | `python -m etl carpetas` | Al iniciar y cuando se registra una etapa nueva | `carpetas.yml` (manual) |
 | `python -m etl respaldo` | Domingos, 8:13 p. m. | `respaldo.yml` (automático) |
 | `python -m etl inventario CARPETA` | En el computador, sobre discos y USB, antes de migrar | local |
@@ -43,6 +44,7 @@ La información de obra (carteras, control de pozos, cantidades, planos, informe
 | `python -m etl plantilla` | Genera la tabla maestra vacía | local |
 | `python -m etl leer CARPETA` | Prueba los transformadores con archivos locales | local |
 | `python -m pytest` | En cada push | `pruebas.yml` (automático) |
+| (marca mensual) | Día 1 de cada mes | `mantener-activo.yml`, para que GitHub no apague los workflows programados |
 
 ### Migración de lo existente (ISO 13008)
 
@@ -71,12 +73,13 @@ sql/
   01_esquema.sql       esquemas ctrl, tecnico, reporte
   02_vistas.sql        vistas para Looker
   03_permisos.sql      permisos de los tres usuarios
-tests/                 56 pruebas con Drive simulado y Postgres real
+tests/                 57 pruebas con Drive simulado y Postgres real
 docs/
   credenciales.md      Google Cloud, refresh token, Neon y Secrets paso a paso
   looker.md            los dos reportes de Looker Studio
   operacion.md         procedimientos de seguridad y operación
-.github/workflows/     pruebas, diario, migración, carpetas, respaldo
+  migracion_local.md   migración desde el computador, por lotes
+.github/workflows/     pruebas, diario, migración, carpetas, respaldo, mantener activo
 ```
 
 ## Puesta en marcha
@@ -86,9 +89,10 @@ Siga `docs/credenciales.md`. En resumen:
 1. Crear en Neon la base, los roles `etl_escritura` y `lector_looker` y ejecutar `sql/01`, `02` y `03`.
 2. Crear en Drive (cuenta de la empresa) la carpeta `PEI_REPOSITORIO` y subir la tabla maestra (`python -m etl plantilla`) abierta como Hoja de cálculo de Google.
 3. Crear el cliente OAuth en Google Cloud, publicarlo en modo **Producción** y obtener el refresh token en OAuth Playground.
-4. Cargar en GitHub los Secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DATABASE_URL` y las Variables `DRIVE_RAIZ_ID`, `TABLA_MAESTRA_ID`.
+4. Cargar en GitHub los Secrets `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `DATABASE_URL`, `DRIVE_RAIZ_ID` y `TABLA_MAESTRA_ID`.
 5. Ejecutar **Crear carpetas** y luego **ETL diaria** desde la pestaña Actions.
 6. Conectar Looker Studio con el usuario `lector_looker` (`docs/looker.md`).
+7. Migrar lo existente desde el computador (`docs/migracion_local.md`).
 
 ## Pruebas
 

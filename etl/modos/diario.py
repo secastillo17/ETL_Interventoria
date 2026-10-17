@@ -54,7 +54,7 @@ class ProcesadorEntrada:
         clave = {"RECHAZADO": "rechazados", "DUPLICADO": "duplicados", "POR_REVISAR": "por_revisar"}[estado]
         self.c[clave] += 1
         self.ultimo_motivo = motivo
-        log.info("  %s: %s (%s)", estado, archivo["name"], motivo)
+        log.debug("  %s: %s (%s)", estado, archivo["name"], motivo)
 
     # ----------------------------------------------------------- un archivo
     def procesar(self, archivo: dict, via: str = "DIARIO", nombre_forzado: Optional[str] = None) -> str:
@@ -135,7 +135,7 @@ class ProcesadorEntrada:
         self.db.evento(self.ej, accion, oficial["id"], nombre_oficial,
                        f"versión {version}" + (f"; recibido como {archivo['name']}" if archivo["name"] != nombre_oficial else ""))
         self.c[clave] += 1
-        log.info("  %s v%s: %s", accion.upper(), version, nombre_oficial)
+        log.debug("  %s v%s: %s", accion.upper(), version, nombre_oficial)
 
         self._cargar_contenido(oficial, archivo_id, n, nombre_oficial)
         return "VIGENTE"
@@ -169,7 +169,7 @@ def ejecutar(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None, hoy:
     with ejecucion(db, "diario") as (ej_id, c), carpeta_temporal() as tmp:
         tmp = Path(tmp)
         raiz = drive.raiz()
-        tm = cargar_tabla_maestra(drive, raiz, tmp)
+        tm = cargar_tabla_maestra(drive, raiz, tmp, db, ej_id)
         db.sincronizar_tabla_maestra(tm)
         proc = ProcesadorEntrada(drive, db, tm, raiz, ej_id, c, tmp, hoy)
         entrada = proc.carpetas.control(config.CARPETA_ENTRADA)
@@ -181,5 +181,7 @@ def ejecutar(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None, hoy:
             except Exception as exc:  # noqa: BLE001
                 c["errores"] += 1
                 db.evento(ej_id, "error", a.get("id"), a.get("name"), f"{type(exc).__name__}: {exc}")
-                log.exception("  ERROR con %s", a.get("name"))
+                # En el registro público solo el tipo de error; el detalle queda en ctrl.evento
+                log.error("  ERROR en un archivo (%s); detalle en ctrl.evento", type(exc).__name__)
+                log.debug("  detalle", exc_info=True)
     return c
