@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Registrar actividad
         run: |
           date -u +"%Y-%m-%d %H:%M UTC" > .github/ultima_actividad.txt
