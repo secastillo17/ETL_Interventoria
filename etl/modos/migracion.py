@@ -418,6 +418,12 @@ def aplicar(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None, hoja_
             decision, aprobado = _texto(f.get("decision")), _texto(f.get("aprobado_director"))
             if not drive_id:
                 continue
+            # Una hoja se puede aplicar varias veces (por tandas): lo que ya se
+            # migró o se descartó no se vuelve a tocar.
+            previo = db.estado_migracion_item(drive_id)
+            if previo in ("MIGRADO", "DESCARTADO"):
+                resultados.append((drive_id, f"YA {previo}", "aplicado en una ejecución anterior"))
+                continue
             if decision == "DESCARTAR" and aprobado == "SI":
                 db.actualizar_migracion_item(drive_id, "DESCARTADO", aprobado_por="director")
                 resultados.append((drive_id, "DESCARTADO", ""))

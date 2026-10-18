@@ -98,3 +98,21 @@ def test_proyecto_por_coordenadas_sin_nombre(tabla, tmp_path):
     s = sugerir({"name": "POLIGONO5.TXT", "ruta": ""}, tabla, leer_contenido(ruta, ruta.name))
     assert (s["proyecto"], s["etapa"]) == ("P001", "E01")
     assert "proyecto por coordenadas" in s["pistas"]
+
+
+def test_aplicar_dos_veces_no_repite(drive, db, tmp_path):
+    a, b = _preparar(drive, tmp_path)
+    hoja = migracion.proponer(drive, db)
+    ruta = drive.items[hoja["id"]]["_local"]
+    wb = load_workbook(open(ruta, "rb"))
+    ws = wb["REVISION"]
+    filas = {ws.cell(r, 1).value: r for r in range(2, ws.max_row + 1)}
+    ws.cell(filas[a], 17).value = "MIGRAR"
+    ws.cell(filas[a], 19).value = "SI"
+    wb.save(ruta)
+    migracion.aplicar(drive, db, hoja_id=hoja["id"], hoy=HOY)
+    oficial = drive.items[a].get("parents")
+    res = migracion.aplicar(drive, db, hoja_id=hoja["id"], hoy=HOY)
+    assert dict(zip(res.drive_id, res.resultado))[a] == "YA MIGRADO"
+    assert drive.items[a].get("parents") == oficial
+    assert db.leer_sql("SELECT count(*) n FROM ctrl.archivo WHERE estado='VIGENTE'").n[0] == 1

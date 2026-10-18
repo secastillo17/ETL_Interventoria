@@ -196,6 +196,12 @@ class BaseDatos:
                 WHERE id = (SELECT MAX(id) FROM ctrl.migracion_item WHERE drive_id = :d)"""),
                 {"e": estado, "n": nombre_final, "a": aprobado_por, "d": drive_id})
 
+    def estado_migracion_item(self, drive_id: str) -> Optional[str]:
+        """Estado del último registro de migración de un archivo, o None."""
+        with self.engine.begin() as c:
+            return c.execute(text("""SELECT estado FROM ctrl.migracion_item WHERE drive_id = :d
+                ORDER BY id DESC LIMIT 1"""), {"d": drive_id}).scalar()
+
     def leer_sql(self, consulta: str) -> pd.DataFrame:
         return pd.read_sql(text(consulta), self.engine)
 
