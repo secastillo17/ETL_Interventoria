@@ -83,3 +83,18 @@ def test_propuesta_con_archivos_reales(drive, db):
     hoja = migracion.proponer(drive, db)
     ws = load_workbook(open(drive.items[hoja["id"]]["_local"], "rb"))["REVISION"]
     assert ws.max_row - 1 == sum(1 for x in DATOS_REALES.rglob("*") if x.is_file())
+
+
+def test_frente_por_contratista_y_fecha_pegada(tabla):
+    a = {"name": "CORTE CON 24052025.xlsx", "ruta": "Andres/Alejandria/", "owners": [{"emailAddress": TOPOGRAFO}]}
+    s = sugerir(a, tabla)
+    # 'CON' es el contratista del frente F01 en las dos etapas de P001: la etapa queda sin decidir
+    assert s["proyecto"] == "P001" and s["fecha"] == date(2025, 5, 24)
+
+
+def test_proyecto_por_coordenadas_sin_nombre(tabla, tmp_path):
+    from etl.contenido import leer_contenido
+    ruta = cartera_txt(tmp_path / "POLIGONO5.TXT")
+    s = sugerir({"name": "POLIGONO5.TXT", "ruta": ""}, tabla, leer_contenido(ruta, ruta.name))
+    assert (s["proyecto"], s["etapa"]) == ("P001", "E01")
+    assert "proyecto por coordenadas" in s["pistas"]

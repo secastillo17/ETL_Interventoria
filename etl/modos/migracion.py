@@ -68,14 +68,16 @@ TAMANO_MAX_PISTAS = 20 * 1024 * 1024
 COLUMNAS = ["drive_id", "ruta", "nombre_actual", "tamano_mb", "propietario", "responsable",
             "proyecto", "origen", "etapa", "frente", "tipo", "fecha", "consecutivo",
             "nombre_resultante", "confianza", "pistas", "decision", "observaciones",
-            "aprobado_director"]
+            "aprobado_director", "abrir_archivo"]
 DECISIONES = ["MIGRAR", "DESCARTAR", "PENDIENTE"]
 
 
 # =========================================================== sugerencias
 def _fecha_en_texto(texto: str) -> Optional[date]:
-    for patron, orden in ((r"(\d{2})[-_.](\d{2})[-_.](\d{4})", "dma"),
-                          (r"(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})", "amd")):
+    # 14-05-2025, 3-12-2025, 14052025 (como nombra el equipo) y 20260707 (WhatsApp)
+    for patron, orden in ((r"(?<!\d)(\d{1,2})[-_.](\d{1,2})[-_.](\d{4})(?!\d)", "dma"),
+                          (r"(?<!\d)(\d{2})(\d{2})(20\d{2})(?!\d)", "dma"),
+                          (r"(?<!\d)(20\d{2})[-_.]?(\d{2})[-_.]?(\d{2})(?!\d)", "amd")):
         for m in re.finditer(patron, texto):
             a, b, c = (int(x) for x in m.groups())
             try:
@@ -89,16 +91,40 @@ def sugerir(archivo: dict, tm: TablaMaestra, contenido=None) -> dict:
     """Propone proyecto, etapa, frente, tipo, fecha y origen con lo que se
     sabe del archivo: carpeta, nombre, extensión, dueño y, si es tabular
     y pequeño, su contenido (abscisas y coordenadas)."""
-    texto = normalizar_texto(f"{archivo.get('ruta', '')} {archivo['name']}")
+    # Guiones y guiones bajos cuentan como espacios: "VIA_LOCAL" = "via local"
+    texto = re.sub(r"[_\-]+", " ", normalizar_texto(f"{archivo.get('ruta', '')} {archivo['name']}"))
+    palabras = set(re.findall(r"[a-z0-9]+", texto))
     pistas, puntos = [], 0
     extension = Path(archivo["name"]).suffix.lower()
 
-    # Proyecto
+    # Coordenadas del contenido (mediana), si es una cartera
+    punto = None
+    if contenido is not None:
+        for df, _ in contenido.tablas:
+            if {"norte", "este"} <= set(df.columns):
+                n = pd.to_numeric(df["norte"], errors="coerce").median()
+                e = pd.to_numeric(df["este"], errors="coerce").median()
+                if pd.notna(n) and pd.notna(e):
+                    punto = (n, e)
+                    break
+
+    def etapas_con_punto(lista):
+        if punto is None:
+            return []
+        return [e for e in lista if None not in (e.norte_min, e.norte_max, e.este_min, e.este_max)
+                and e.norte_min <= punto[0] <= e.norte_max and e.este_min <= punto[1] <= e.este_max]
+
+    # Contratistas mencionados en la carpeta o el nombre (código o nombre)
+    contratistas = {c for c, datos in tm.contratistas.items()
+                    if c.lower() in palabras or any(
+                        w in palabras for w in re.findall(r"[a-z0-9]{2,}", normalizar_texto(datos["nombre"])))}
+
+    # Proyecto: palabra clave; si no hay, por coordenadas
     proyecto = None
     candidatos = []
     for p in tm.proyectos.values():
         claves = p.palabras_clave + [normalizar_texto(p.nombre)]
-        if p.codigo.lower() in texto.split() or any(k and k in texto for k in claves):
+        if p.codigo.lower() in palabras or any(k and k in texto for k in claves):
             candidatos.append(p.codigo)
     if len(candidatos) == 1:
         proyecto = candidatos[0]
@@ -108,8 +134,14 @@ def sugerir(archivo: dict, tm: TablaMaestra, contenido=None) -> dict:
         proyecto = next(iter(tm.proyectos))
     elif len(candidatos) > 1:
         pistas.append(f"varios proyectos posibles: {', '.join(candidatos)}")
+    if proyecto is None and not candidatos:
+        por_coord = sorted({e.proyecto for e in etapas_con_punto(tm.etapas.values())})
+        if len(por_coord) == 1:
+            proyecto = por_coord[0]
+            pistas.append(f"proyecto por coordenadas ({proyecto})")
+            puntos += 1
 
-    # Etapa
+    # Etapa: abscisa, coordenadas, palabra clave o contratista
     etapa = GENERAL
     terminado = proyecto and tm.proyectos[proyecto].estado == "TERMINADO"
     if proyecto and not terminado:
@@ -119,16 +151,10 @@ def sugerir(archivo: dict, tm: TablaMaestra, contenido=None) -> dict:
         por_abscisa = [e.etapa for e in etapas for a in abscisas
                        if a is not None and e.abscisa_inicio is not None and e.abscisa_fin is not None
                        and e.abscisa_inicio <= a <= e.abscisa_fin]
-        por_coord = []
-        if contenido is not None:
-            for df, tabla in contenido.tablas:
-                if {"norte", "este"} <= set(df.columns):
-                    n, s = pd.to_numeric(df["norte"], errors="coerce").median(), \
-                        pd.to_numeric(df["este"], errors="coerce").median()
-                    por_coord += [e.etapa for e in etapas
-                                  if None not in (e.norte_min, e.norte_max, e.este_min, e.este_max)
-                                  and e.norte_min <= n <= e.norte_max and e.este_min <= s <= e.este_max]
-        for fuente, lista in (("abscisa", por_abscisa), ("coordenadas", por_coord), ("palabra clave", por_clave)):
+        por_coord = [e.etapa for e in etapas_con_punto(etapas)]
+        por_contratista = [a.etapa for a in tm.frentes if a.proyecto == proyecto and a.contratista in contratistas]
+        for fuente, lista in (("abscisa", por_abscisa), ("coordenadas", por_coord),
+                              ("palabra clave", por_clave), ("contratista", por_contratista)):
             unicos = sorted(set(lista))
             if len(unicos) == 1:
                 etapa = unicos[0]
@@ -138,12 +164,19 @@ def sugerir(archivo: dict, tm: TablaMaestra, contenido=None) -> dict:
     elif terminado:
         pistas.append("proyecto terminado: se clasifica solo hasta proyecto")
 
-    # Frente: si la etapa tiene un solo frente se propone ese
+    # Frente: el único de la etapa, o el del contratista mencionado en la ruta
+    # (es común que el equipo tenga una carpeta por contratista)
     frente = GENERAL
     if etapa != GENERAL:
-        frentes = sorted({a.frente for a in tm.frentes if (a.proyecto, a.etapa) == (proyecto, etapa)})
+        asignaciones = [a for a in tm.frentes if (a.proyecto, a.etapa) == (proyecto, etapa)]
+        frentes = sorted({a.frente for a in asignaciones})
         if len(frentes) == 1:
             frente = frentes[0]
+        else:
+            por_contratista = sorted({a.frente for a in asignaciones if a.contratista in contratistas})
+            if len(por_contratista) == 1:
+                frente = por_contratista[0]
+                pistas.append(f"frente por contratista en la ruta ({frente})")
 
     # Tipo
     tipo = None
@@ -164,8 +197,7 @@ def sugerir(archivo: dict, tm: TablaMaestra, contenido=None) -> dict:
         tipo = TIPO_POR_EXTENSION[extension]
         pistas.append(f"tipo por extensión ({tipo})")
     if not tipo and extension == ".pdf":
-        tipo = "INF"
-        pistas.append("tipo supuesto para PDF (INF), revisar")
+        pistas.append("PDF sin pistas de tipo: elegir INF, PLA, SOP o PAC")
 
     # Fecha
     fecha = _fecha_en_texto(archivo["name"]) or _fecha_en_texto(archivo.get("ruta", ""))
@@ -184,6 +216,16 @@ def sugerir(archivo: dict, tm: TablaMaestra, contenido=None) -> dict:
     return {"proyecto": proyecto or "", "origen": origen, "etapa": etapa, "frente": frente,
             "tipo": tipo or "", "fecha": fecha, "confianza": confianza, "pistas": "; ".join(pistas),
             "propietario": dueno}
+
+
+def _responsable(archivo: dict, sugerencia: dict, cuenta_empresa: str) -> str:
+    """Quién revisa la fila: el dueño del archivo; si lo subió la cuenta de la
+    empresa, el nombre de la subcarpeta de 00_MIGRACION (ej. 'Andres/')."""
+    dueno = sugerencia.get("propietario") or ""
+    if dueno and dueno != cuenta_empresa:
+        return dueno
+    primera = (archivo.get("ruta") or "").split("/")[0]
+    return primera or "director"
 
 
 def _nombre_parecido(nombre: str) -> str:
@@ -237,7 +279,8 @@ def construir_hoja(filas: list, tm: TablaMaestra, ruta: Path) -> Path:
                    f["responsable"], f["proyecto"], f["origen"], f["etapa"], f["frente"], f["tipo"],
                    f["fecha"].strftime("%d-%m-%Y"), None,
                    f'=G{i}&"-"&H{i}&"-"&I{i}&"-"&J{i}&"-"&K{i}&"-"&L{i}&"-"&IF(M{i}="","NN",TEXT(M{i},"00"))',
-                   f["confianza"], f["pistas"], f["decision"], f["observaciones"], ""])
+                   f["confianza"], f["pistas"], f["decision"], f["observaciones"], "",
+                   f'=HYPERLINK("{f["enlace"]}","abrir")' if f.get("enlace") else ""])
         ws[f"L{i}"].number_format = "@"
         for col in "GHIJKLMQS":
             ws[f"{col}{i}"].fill = amarillo
@@ -254,7 +297,7 @@ def construir_hoja(filas: list, tm: TablaMaestra, ruta: Path) -> Path:
     for col, w in anchos.items():
         ws.column_dimensions[col].width = w
     ws.freeze_panes = "D2"
-    ws.auto_filter.ref = f"A1:S{n}"
+    ws.auto_filter.ref = f"A1:T{n}"
     ruta.parent.mkdir(parents=True, exist_ok=True)
     wb.save(ruta)
     return ruta
@@ -274,6 +317,7 @@ def proponer(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None):
         archivos = drive.listar_archivos(origen_id, excluir={"_DESCARTADOS"})
         log.info("00_MIGRACION: %d archivo(s)", len(archivos))
 
+        yo = drive.yo()
         vistos_md5, vistos_nombre = {}, {}
         filas = []
         for a in sorted(archivos, key=lambda x: (x.get("ruta", ""), x["name"])):
@@ -306,7 +350,8 @@ def proponer(drive: Optional[Drive] = None, db: Optional[BaseDatos] = None):
             if md5:
                 vistos_md5.setdefault(md5, f"{a.get('ruta', '')}{a['name']}")
             fila = {"drive_id": a["id"], "ruta": a.get("ruta", ""), "nombre_actual": a["name"],
-                    "tamano_mb": round(tam / 1048576, 2), "responsable": s["propietario"] or "director",
+                    "tamano_mb": round(tam / 1048576, 2), "responsable": _responsable(a, s, yo),
+                    "enlace": a.get("webViewLink", ""),
                     "decision": decision, "observaciones": obs, **s}
             filas.append(fila)
             db.registrar_migracion_item(ej_id, {

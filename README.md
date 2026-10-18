@@ -73,7 +73,7 @@ sql/
   01_esquema.sql       esquemas ctrl, tecnico, reporte
   02_vistas.sql        vistas para Looker
   03_permisos.sql      permisos de los tres usuarios
-tests/                 57 pruebas con Drive simulado y Postgres real
+tests/                 59 pruebas con Drive simulado y Postgres real
 docs/
   credenciales.md      Google Cloud, refresh token, Neon y Secrets paso a paso
   looker.md            los dos reportes de Looker Studio
