@@ -16,18 +16,25 @@ except ImportError:  # pragma: no cover
 BASE_DIR = Path(__file__).resolve().parent.parent
 SQL_DIR = BASE_DIR / "sql"
 
+
+def _secreto(nombre: str, defecto: str = "") -> str:
+    """Lee una variable quitando espacios, saltos de línea y comillas que se
+    cuelan al pegar el valor en GitHub Secrets."""
+    return os.getenv(nombre, defecto).strip().strip('"').strip("'").strip()
+
+
 # --- Google Drive (OAuth con refresh token, sin navegador) -----------------
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_REFRESH_TOKEN = os.getenv("GOOGLE_REFRESH_TOKEN", "")
+GOOGLE_CLIENT_ID = _secreto("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = _secreto("GOOGLE_CLIENT_SECRET")
+GOOGLE_REFRESH_TOKEN = _secreto("GOOGLE_REFRESH_TOKEN")
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 # Carpeta raíz del repositorio documental en Drive y archivo de la tabla
 # maestra. Se pueden dar por ID (recomendado) o dejar que se busquen por
 # nombre.
-DRIVE_RAIZ_ID = os.getenv("DRIVE_RAIZ_ID", "")
+DRIVE_RAIZ_ID = _secreto("DRIVE_RAIZ_ID")
 DRIVE_RAIZ_NOMBRE = os.getenv("DRIVE_RAIZ_NOMBRE", "PEI_REPOSITORIO")
-TABLA_MAESTRA_ID = os.getenv("TABLA_MAESTRA_ID", "")
+TABLA_MAESTRA_ID = _secreto("TABLA_MAESTRA_ID")
 TABLA_MAESTRA_NOMBRE = os.getenv("TABLA_MAESTRA_NOMBRE", "TABLA_MAESTRA_PEI")
 
 # Carpetas de control (hijas directas de la raíz)
@@ -43,7 +50,7 @@ CARPETA_HISTORICO = "_HISTORICO"  # dentro de cada carpeta de tipo
 # --- Base de datos ----------------------------------------------------------
 # Cadena de conexión de Neon, ej.
 # postgresql://etl_escritura:****@ep-xxx.us-east-2.aws.neon.tech/pei?sslmode=require
-DATABASE_URL = os.getenv("DATABASE_URL", "")
+DATABASE_URL = _secreto("DATABASE_URL")
 
 # --- Límites ----------------------------------------------------------------
 # Solo se descargan los archivos cuyo contenido se transforma en tablas.
