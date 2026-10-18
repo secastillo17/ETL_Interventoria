@@ -9,7 +9,13 @@ Tiempo estimado: unos 45 minutos.
 ## 1. Base de datos en Neon
 
 1. Entre a <https://neon.tech> con la cuenta de la empresa. Cree un proyecto `pei` con Postgres 16 o 17, región **AWS US East**, que es la más cercana a los servidores de GitHub y de Looker. El plan gratuito tiene 0,5 GB, que alcanza de sobra para los metadatos y las tablas técnicas. Los archivos siguen en Drive.
-2. Vaya a **Branches → main → Roles & Databases → Add role** y cree `etl_escritura` y `lector_looker`. Guarde las dos claves que Neon genera en el gestor de contraseñas de la empresa.
+2. Cree los usuarios `etl_escritura` y `lector_looker` **por SQL, no desde la consola**. Neon les da a los usuarios creados en la consola la membresía `neon_superuser`, que incluye `pg_read_all_data` y `pg_write_all_data`: el usuario de Looker podría escribir y borrar en todas las tablas, y eso rompe el mínimo privilegio. Los usuarios creados con `CREATE ROLE` no reciben esa membresía. En el **SQL Editor**, con el rol `neondb_owner`, ejecute (con una clave temporal cualquiera de más de 12 caracteres):
+   ```sql
+   CREATE ROLE etl_escritura WITH LOGIN PASSWORD '<clave temporal>';
+   CREATE ROLE lector_looker WITH LOGIN PASSWORD '<clave temporal>';
+   GRANT CONNECT ON DATABASE neondb TO etl_escritura, lector_looker;
+   ```
+   Después, en **Postgres database → Roles**, use **Reset password** en cada uno para que Neon genere la clave definitiva. Así la clave no queda escrita en ningún lado.
 3. Abra **SQL Editor** con el rol dueño (`neondb_owner`) y ejecute en orden:
    - `sql/01_esquema.sql`
    - `sql/02_vistas.sql`
@@ -30,7 +36,7 @@ Tiempo estimado: unos 45 minutos.
 1. Entre a <https://console.cloud.google.com> con la cuenta de la empresa y cree el proyecto `PEI-ETL`.
 2. Vaya a **APIs y servicios → Biblioteca**, busque **Google Drive API** y actívela.
 3. Vaya a **Google Auth Platform**. En versiones anteriores de la consola se llama "Pantalla de consentimiento de OAuth".
-   - **Branding**: nombre `PEI ETL` y correo de soporte de la empresa.
+   - **Branding**: nombre `PEI ETL`, correo de soporte y correo de contacto del desarrollador de la empresa. Google no deja publicar una app externa sin página principal, política de privacidad y dominio autorizado, aunque la pantalla no los marque como obligatorios. Se usó el repositorio público: página principal `https://github.com/secastillo17/ETL_Interventoria`, política y condiciones con enlaces a documentos del repositorio, y dominio autorizado `github.com`. No suba logotipo: con logotipo Google exige verificar la app.
    - **Audience**: tipo **External**. Luego pulse **Publish app** para que quede **In production**.
      - **Esto es obligatorio.** En modo *Testing* el refresh token caduca a los 7 días y la ETL dejaría de funcionar sola.
      - Google mostrará que la app "no está verificada". Para una app interna con un solo usuario, que es la propia empresa, no hace falta verificarla.
@@ -55,7 +61,7 @@ El token deja de servir si alguien lo revoca en <https://myaccount.google.com/pe
 
 ## 5. Repositorio y Secrets de GitHub
 
-1. Cree el repositorio **público** `pei-etl`. Cualquiera puede ver el código y las ejecuciones sin invitación, pero nadie puede cambiarlo ni ejecutarlo. Los Secrets no son visibles, y en los registros solo aparecen conteos, nunca nombres de archivos ni correos.
+1. Cree el repositorio **público** `ETL_Interventoria`. Cualquiera puede ver el código y las ejecuciones sin invitación, pero nadie puede cambiarlo ni ejecutarlo. Los Secrets no son visibles, y en los registros solo aparecen conteos, nunca nombres de archivos ni correos.
 2. En el repositorio, vaya a **Settings → Secrets and variables → Actions**.
    - En la pestaña **Secrets → New repository secret**, cree:
 

@@ -7,9 +7,11 @@
 --                  no puede crear ni borrar tablas.
 --   lector_looker  el que usa Looker Studio. Solo lee las vistas de reporte.
 --
--- Antes de ejecutar esto, cree los dos roles en la consola de Neon
--- (Branches > main > Roles > New role). Neon genera las claves; no se
--- escriben en ningún archivo del repositorio.
+-- Antes de ejecutar esto, cree los dos roles con CREATE ROLE ... LOGIN
+-- desde el SQL Editor (ver docs/credenciales.md). No los cree desde la
+-- consola: Neon los haría miembros de neon_superuser, que lee y escribe
+-- todas las tablas. Las claves se generan con "Reset password" en la
+-- consola y no se escriben en ningún archivo del repositorio.
 -- ============================================================================
 
 -- Nadie más puede crear objetos en el esquema público
