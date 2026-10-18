@@ -307,53 +307,157 @@ class TablaMaestra:
         return motivos, avisos, contratista or (o if o != ORIGEN_INTERNO else None)
 
 
+# Qué va en cada columna: se usa para la hoja INSTRUCCIONES y para las notas
+# de los encabezados. (hoja, columna, qué escribir, ejemplo, obligatoria)
+GUIA_COLUMNAS = [
+    ("CONTRATISTAS", "codigo", "Tres letras que identifican al contratista. Es el código que usa en el nombre de los archivos que entrega. No se cambia nunca.", "EMS", "Sí"),
+    ("CONTRATISTAS", "nombre", "Nombre del contratista.", "EMS Ingeniería S.A.S.", "Sí"),
+    ("CONTRATISTAS", "correos", "Correos de Google con los que el contratista sube archivos, separados por coma. Sirven para reconocer quién subió cada archivo.", "obra@ems.com", "No"),
+    ("PROYECTOS", "codigo", "P y tres números. Cada proyecto tiene uno propio que no se repite ni se cambia.", "P001", "Sí"),
+    ("PROYECTOS", "nombre", "Nombre del proyecto como lo conoce el equipo.", "Alejandría", "Sí"),
+    ("PROYECTOS", "estado", "ACTIVO, TERMINADO o SUSPENDIDO (elegir de la lista). Los proyectos terminados solo se clasifican hasta proyecto.", "ACTIVO", "Sí"),
+    ("PROYECTOS", "fecha_inicio", "Fecha de inicio, en formato AAAA-MM-DD.", "2025-05-01", "Sí"),
+    ("PROYECTOS", "fecha_fin", "Fecha de terminación. Vacía si el proyecto sigue en curso.", "2026-12-31", "No"),
+    ("PROYECTOS", "palabras_clave", "Palabras con las que el equipo nombra el proyecto en carpetas y archivos, separadas por coma. Ayudan a clasificar los archivos antiguos.", "alejandria, calle 100", "Recomendada"),
+    ("ETAPAS", "proyecto", "Código del proyecto al que pertenece la etapa. Debe existir en PROYECTOS.", "P001", "Sí"),
+    ("ETAPAS", "etapa", "E y dos números. Se puede repetir entre proyectos distintos.", "E04", "Sí"),
+    ("ETAPAS", "nombre", "Nombre de la etapa.", "Etapa 4 - Sector 5", "Sí"),
+    ("ETAPAS", "fecha_inicio", "Fecha de inicio de la etapa, AAAA-MM-DD.", "2025-05-01", "Sí"),
+    ("ETAPAS", "fecha_fin", "Fecha de fin. Vacía si sigue en curso.", "", "No"),
+    ("ETAPAS", "abscisa_inicio", "Abscisa donde empieza la etapa.", "K0+000", "No"),
+    ("ETAPAS", "abscisa_fin", "Abscisa donde termina la etapa.", "K0+800", "No"),
+    ("ETAPAS", "norte_min", "Coordenada norte mínima de la zona de la etapa. Con las cuatro coordenadas el sistema ubica las carteras antiguas aunque su nombre no diga nada.", "1711000", "No"),
+    ("ETAPAS", "norte_max", "Coordenada norte máxima de la zona.", "1711550", "No"),
+    ("ETAPAS", "este_min", "Coordenada este mínima de la zona.", "918500", "No"),
+    ("ETAPAS", "este_max", "Coordenada este máxima de la zona.", "919250", "No"),
+    ("ETAPAS", "palabras_clave", "Palabras con las que el equipo nombra la etapa, separadas por coma.", "etapa 4, sector 5", "Recomendada"),
+    ("FRENTES", "proyecto", "Código del proyecto. Debe existir en PROYECTOS.", "P001", "Sí"),
+    ("FRENTES", "etapa", "Código de la etapa. Debe existir en ETAPAS para ese proyecto.", "E04", "Sí"),
+    ("FRENTES", "frente", "F y dos números.", "F01", "Sí"),
+    ("FRENTES", "nombre", "Qué se hace en ese frente.", "Redes sanitarias", "Sí"),
+    ("FRENTES", "contratista", "Código del contratista a cargo, tomado de CONTRATISTAS. Vacío si lo ejecuta PEI.", "EMS", "No"),
+    ("FRENTES", "fecha_inicio", "Desde cuándo está ese contratista a cargo, AAAA-MM-DD.", "2025-05-01", "Sí"),
+    ("FRENTES", "fecha_fin", "Hasta cuándo. Vacía si sigue a cargo. Si el frente cambia de contratista, se pone la fecha fin aquí y se agrega una fila nueva.", "", "No"),
+    ("PERSONAS", "correo", "Cuenta de Google con la que la persona sube archivos al Drive.", "topografo@gmail.com", "Sí"),
+    ("PERSONAS", "nombre", "Nombre de la persona.", "Andrés Pérez", "Sí"),
+    ("PERSONAS", "rol", "director, suplente, residente, topografo o auxiliar. El director y el suplente pueden reemplazar archivos oficiales de otras personas.", "topografo", "Sí"),
+    ("PERSONAS", "origen", "PEI si trabaja para la interventoría, o el código del contratista si trabaja para uno.", "PEI", "Sí"),
+]
+
+PROPOSITO_HOJAS = {
+    "CONTRATISTAS": "Las empresas que ejecutan la obra. Se llena primero porque FRENTES usa sus códigos.",
+    "PROYECTOS": "Cada obra que interviene PEI.",
+    "ETAPAS": "Las partes en que se divide cada proyecto.",
+    "FRENTES": "Los frentes de trabajo de cada etapa y qué contratista está a cargo, con fechas. Es lo que permite saber quién era responsable en la fecha de cada archivo.",
+    "PERSONAS": "El equipo que sube archivos. Con esto el sistema sabe quién subió cada uno y quién debe revisarlo.",
+}
+
+
 def generar_plantilla(ruta: Path) -> Path:
-    """Crea la tabla maestra vacía, con una fila de ejemplo por hoja y una
-    hoja de instrucciones. Se sube a Drive y se abre como Hoja de cálculo."""
+    """Crea la tabla maestra vacía, con una fila de ejemplo por hoja, notas
+    en cada encabezado y una hoja de instrucciones para el director."""
     from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill
+    from openpyxl.comments import Comment
+    from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.worksheet.datavalidation import DataValidation
 
     ejemplo = {
-        "PROYECTOS": [["P003", "Vía Calle 45 (ejemplo, reemplazar)", "ACTIVO", "2026-03-01", "",
-                       "calle 45, c45"]],
-        "ETAPAS": [["P003", "E01", "Tramo norte", "2026-03-01", "2026-06-30",
-                    "K0+000", "K0+800", "", "", "", "", "norte"]],
-        "FRENTES": [["P003", "E01", "F01", "Redes sanitarias", "ALE", "2026-03-01", "2026-06-30"]],
-        "CONTRATISTAS": [["ALE", "Alejandro S.A. (ejemplo)", "obra@ejemplo.com"]],
+        "PROYECTOS": [["P001", "Alejandría (ejemplo, reemplazar)", "ACTIVO", "2025-05-01", "", "alejandria, calle 100"]],
+        "ETAPAS": [["P001", "E04", "Etapa 4 - Sector 5", "2025-05-01", "", "K0+000", "K0+800",
+                    "", "", "", "", "etapa 4, sector 5"]],
+        "FRENTES": [["P001", "E04", "F01", "Redes sanitarias", "EMS", "2025-05-01", ""]],
+        "CONTRATISTAS": [["EMS", "EMS (ejemplo)", "obra@ejemplo.com"]],
         "PERSONAS": [["topografo@ejemplo.com", "Nombre del topógrafo", "topografo", "PEI"]],
     }
+    azul = PatternFill("solid", fgColor="1F4E78")
+    gris = PatternFill("solid", fgColor="D9E1F2")
+    blanco = Font(bold=True, color="FFFFFF")
+    negrita = Font(bold=True)
+    ajuste = Alignment(wrap_text=True, vertical="top")
+
     wb = Workbook()
     ins = wb.active
     ins.title = "INSTRUCCIONES"
-    lineas = [
-        "TABLA MAESTRA PEI. La mantiene el director; la ETL la lee en cada corrida.",
-        "1. Solo el director crea proyectos, etapas y frentes y asigna contratistas.",
-        "2. Antes de iniciar un frente nuevo, regístrelo en FRENTES.",
-        "3. Si un frente cambia de contratista, agregue una fila nueva con las fechas; no borre la anterior.",
-        "4. Fechas en formato AAAA-MM-DD. Fecha fin vacía = sigue vigente.",
-        "5. Abscisas como K0+470. Coordenadas (norte/este) y palabras clave son opcionales:",
-        "   ayudan a la migración a sugerir el proyecto y la etapa de los archivos antiguos.",
-        "6. Códigos de tipo válidos: " + ", ".join(f"{k} ({v})" for k, v in TIPOS.items()),
-    ]
-    for i, l in enumerate(lineas, 1):
-        ins.cell(row=i, column=1, value=l)
-    ins.column_dimensions["A"].width = 120
-    encabezado = PatternFill("solid", fgColor="1F4E78")
+    for col, ancho in zip("ABCDE", (16, 18, 70, 24, 13)):
+        ins.column_dimensions[col].width = ancho
+
+    def linea(texto="", estilo=None):
+        ins.append([texto])
+        c = ins.cell(row=ins.max_row, column=1)
+        if estilo:
+            c.font = estilo
+
+    linea("TABLA MAESTRA PEI", Font(bold=True, size=14))
+    linea("Es la lista oficial de proyectos, etapas, frentes, contratistas y personas de PEI. El sistema la "
+          "lee cada vez que procesa archivos: con ella revisa que los nombres de los archivos sean correctos, "
+          "crea las carpetas en Drive y sugiere cómo clasificar los archivos antiguos.")
+    linea("La llena y la actualiza solo el director o su suplente. El resto del equipo solo puede verla.")
+    linea("Se actualiza cuando empieza un proyecto, una etapa o un frente; cuando un frente cambia de "
+          "contratista, y cuando una persona entra o sale del equipo.")
+    linea()
+    linea("ORDEN PARA LLENARLA", negrita)
+    for i, (hoja, texto) in enumerate(PROPOSITO_HOJAS.items(), 1):
+        linea(f"{i}. {hoja}. {texto}")
+    linea()
+    linea("QUÉ VA EN CADA COLUMNA (también aparece como nota al pasar el cursor por cada encabezado)", negrita)
+    ins.append(["Hoja", "Columna", "Qué escribir", "Ejemplo", "Obligatoria"])
+    for c in ins[ins.max_row]:
+        c.font, c.fill = blanco, azul
+    hoja_anterior = None
+    for hoja, columna, texto, ej, obligatoria in GUIA_COLUMNAS:
+        ins.append([hoja if hoja != hoja_anterior else "", columna, texto, ej, obligatoria])
+        fila = ins[ins.max_row]
+        for c in fila:
+            c.alignment = ajuste
+        if hoja != hoja_anterior:
+            for c in fila:
+                c.fill = gris
+        hoja_anterior = hoja
+    linea()
+    linea("REGLAS", negrita)
+    for regla in (
+        "1. Los códigos (P001, E04, F01, EMS) no se cambian ni se reutilizan una vez creados, porque ya están en los nombres de los archivos.",
+        "2. No se borran filas de FRENTES. Si un frente cambia de contratista, se pone fecha fin en la fila actual y se agrega una nueva.",
+        "3. Las fechas van como AAAA-MM-DD (por ejemplo 2025-05-01). Fecha fin vacía significa que sigue vigente.",
+        "4. Un archivo que mencione un proyecto, etapa o frente que no esté aquí será rechazado con el motivo.",
+        "5. ZZ significa general o varios: se usa en el nombre del archivo cuando no aplica una etapa o un frente.",
+        "6. PEI es el origen de los archivos que produce la interventoría; el código del contratista, de los que entrega él.",
+        "7. Borre las filas de ejemplo antes de empezar.",
+    ):
+        linea(regla)
+    linea()
+    linea("TIPOS DE ARCHIVO VÁLIDOS EN EL NOMBRE", negrita)
+    for codigo, desc in TIPOS.items():
+        ins.append([codigo, desc])
+    for fila in ins.iter_rows(min_row=1, max_row=8):
+        fila[0].alignment = Alignment(wrap_text=False)
+
+    notas = {}
+    for hoja, columna, texto, ej, obligatoria in GUIA_COLUMNAS:
+        notas[(hoja, columna)] = f"{texto} Ejemplo: {ej or '(vacío)'}. Obligatoria: {obligatoria}."
     for hoja, columnas in HOJAS.items():
         ws = wb.create_sheet(hoja)
         ws.append(columnas)
         for c in ws[1]:
-            c.font = Font(bold=True, color="FFFFFF")
-            c.fill = encabezado
+            c.font, c.fill = blanco, azul
+            nota = notas.get((hoja, c.value))
+            if nota:
+                c.comment = Comment(nota, "PEI", width=320, height=120)
         for fila in ejemplo[hoja]:
             ws.append(fila)
         for i, _ in enumerate(columnas, 1):
             ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = 18
+        ws.freeze_panes = "A2"
         if hoja == "PROYECTOS":
             dv = DataValidation(type="list", formula1='"ACTIVO,TERMINADO,SUSPENDIDO"', allow_blank=True)
             ws.add_data_validation(dv)
             dv.add("C2:C200")
+        if hoja == "PERSONAS":
+            dv = DataValidation(type="list", formula1='"director,suplente,residente,topografo,auxiliar"', allow_blank=True)
+            ws.add_data_validation(dv)
+            dv.add("C2:C200")
+    # Orden de las pestañas igual al orden de llenado
+    wb._sheets = [wb["INSTRUCCIONES"]] + [wb[h] for h in PROPOSITO_HOJAS]
     ruta.parent.mkdir(parents=True, exist_ok=True)
     wb.save(ruta)
     return ruta

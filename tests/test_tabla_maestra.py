@@ -55,4 +55,4 @@ def test_abscisas():
 
 def test_plantilla_se_puede_leer(tmp_path):
     t = TablaMaestra.desde_excel(generar_plantilla(tmp_path / "p.xlsx"))
-    assert "P003" in t.proyectos and not t.problemas
+    assert "P001" in t.proyectos and not t.problemas
